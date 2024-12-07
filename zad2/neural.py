@@ -1,6 +1,7 @@
 from enum import Enum
 import math
 import numpy as np
+from scipy.special import softmax as axis_softmax
 
 def sigmoid(x: np.ndarray) -> np.ndarray:
     return 1 / (1 + np.exp(-x))
@@ -27,8 +28,7 @@ def d_leaky_relu(y: np.ndarray, alpha = 0.01) -> np.ndarray:
     return np.where(y > 0, 1, alpha)
 
 def softmax(x: np.ndarray) -> np.ndarray:
-    exp_x = np.exp(x)
-    return exp_x / np.sum(exp_x)
+    return axis_softmax(x, axis = 0)
 
 class Activation(Enum):
     SIGMOID = 1
@@ -79,10 +79,14 @@ class Layer:
         Calculate the output of the layer for the given data
 
         Parameters:
-        data (np.ndarray): The input data; should have shape (self.input_size, 1)
+        data (np.ndarray): The input data; should have shape (self.input_size, batch_size)
         """
-        data_with_bias = np.vstack(([1], data))
+        _, batch_size = data.shape
+        self.batch_size = batch_size
+
+        data_with_bias = np.vstack((np.ones((1, batch_size)), data))
         self.data_with_bias = data_with_bias
+
         self.net = self.weights @ data_with_bias
         self.result = self.__activate(self.net)
         return self.result
@@ -98,15 +102,9 @@ class Layer:
         # the argument in the mathematical sense is self.net,
         # but the derivative is dependent only on self.result
         delta = d_loss * self.__d_activate(self.result)
-        d_weights = delta @ self.data_with_bias.T
-        # print("weights:", self.weights)
-        # print("delta:", delta)
-        # print("biasd:", self.data_with_bias.T)
-        # print("d:", d_weights)
+        d_weights = delta @ self.data_with_bias.T / self.batch_size
 
         self.weights -= self.learning_rate * d_weights
-        # print("weights:", self.weights)
-        # print("---")
 
         return (self.weights.T @ delta)[1:]
 
@@ -121,15 +119,9 @@ class Layer:
         # print(result)
         # print(expected)
         delta = result - expected
-        d_weights = delta @ self.data_with_bias.T
-        # print("weights:", self.weights)
-        # print("delta:", delta)
-        # print("biasd:", self.data_with_bias.T)
-        # print("d:", d_weights)
+        d_weights = delta @ self.data_with_bias.T / self.batch_size
 
         self.weights -= self.learning_rate * d_weights
-        # print("weights:", self.weights)
-        # print("---")
 
         return (self.weights.T @ delta)[1:]
 
